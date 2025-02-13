@@ -131,6 +131,7 @@ class SpaceShooter:
         self.player_y = 60
         self.player_lives = 3
         self.score = 0
+        self.boss_trigger_score = 350  # Score needed to trigger first boss
         self.current_level = 1
         self.level_text_timer = 120  # Show level text for 2 seconds
         self.level_complete_timer = 0
@@ -310,7 +311,7 @@ class SpaceShooter:
 
     def update_game(self):
         # Check for boss initiation
-        if self.score >= 350 and not self.boss:
+        if self.score >= self.boss_trigger_score and not self.boss:
             # Flash screen red 3 times
             for _ in range(3):
                 pyxel.cls(8)  # Red flash
@@ -497,7 +498,8 @@ class SpaceShooter:
             if (abs(bullet[0] - self.player_x) < 8 and 
                 abs(bullet[1] - self.player_y) < 8):
                 self.player_lives -= 1
-                self.enemy_bullets.remove(bullet)
+                if bullet in self.enemy_bullets:
+                    self.enemy_bullets.remove(bullet)
                 if self.sound_enabled:
                     pyxel.play(1, 3)  # Play explosion sound
                 # Pause for a moment
@@ -578,6 +580,9 @@ class SpaceShooter:
                     self.enemies.clear()
                     self.enemy_bullets.clear()
                     self.player_bullets.clear()
+                    # Reset boss trigger score for next level
+                    self.boss_trigger_score = self.score + 350
+                    return  # Exit update loop after boss defeat
 
             if bullet[0] > 160 or bullet[0] < 0 or bullet[1] < 0 or bullet[1] > 120:
                 self.player_bullets.remove(bullet)
