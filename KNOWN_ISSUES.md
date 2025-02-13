@@ -27,4 +27,4 @@
 - Add unique music for each boss battle
 - Implement distinct level themes
 - Add more varied enemy attack patterns
-- Improve visual feedback for power-up statu
+- Improve visual feedback for power-up status

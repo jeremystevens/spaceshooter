@@ -16,7 +16,7 @@ class SpaceShooter:
         self.current_powerup = None
         self.powerup_timer = 0
         self.partner_active = False
-        self.partner_offset = {"x": -20, "y": 0}
+        self.partner_offset = {"x": 0, "y": -15}  # Position partner above player
         self.move_speed = 2
         self.shot_pattern = "normal"
 
@@ -172,8 +172,23 @@ class SpaceShooter:
         # Victory tune
         pyxel.sounds[5].set("c3e3g3c4g3c4e4g4", "s", "7", "nnnn", 10)
 
+        # Level 1 music
+        pyxel.sounds[6].set(
+            "e2e2c2g1 g1g1c2e2 d2d2d2g2 g2g2rr" "c2c2a1e1 e1e1a1c2 b1b1b1e2 e2e2rr",
+            "p", "6", "nnff", 25)
+
+        # Level 2 music
+        pyxel.sounds[7].set(
+            "a2a2f2c2 c2c2f2a2 g2g2g2c3 c3c3rr" "f2f2d2a1 a1a1d2f2 e2e2e2a2 a2a2rr",
+            "t", "7", "nnsf", 20)
+
+        # Level 3 music 
+        pyxel.sounds[8].set(
+            "d3d3b2f2 f2f2b2d3 c3c3c3f3 f3f3rr" "b2b2g2d2 d2d2g2b2 a2a2a2d3 d3d3rr",
+            "s", "7", "fnff", 30)
+
         # Start playing the background music
-        pyxel.play(0, 0, loop=True)
+        pyxel.play(0, 6, loop=True)  # Start with level 1 music
 
         pyxel.run(self.update, self.draw)
 
@@ -302,7 +317,7 @@ class SpaceShooter:
                 pyxel.flip()
                 for _ in range(10):  # Wait
                     pyxel.flip()
-            
+
             # Initialize boss
             self.boss = {
                 "x": 120,
@@ -401,11 +416,9 @@ class SpaceShooter:
                         dy = math.sin(math.radians(angle))
                         self.enemy_bullets.append([enemy["x"], enemy["y"], dx, dy])
                     enemy["shoot_delay"] = 120
-                if enemy["dir_change"] >= 15:
-                    enemy["dy"] = pyxel.rndf(-2, 2)
-                    enemy["dir_change"] = 0
-                enemy["y"] += enemy["dy"]
-                enemy["y"] = max(10, min(110, enemy["y"]))
+                enemy["y"] = max(10, min(110, enemy["y"] + enemy["dy"]))
+                if enemy["y"] <= 10 or enemy["y"] >= 110:
+                    enemy["dy"] *= -1  # Reverse direction when hitting boundaries
                 if enemy["shoot_delay"] <= 0:
                     self.enemy_bullets.append([enemy["x"], enemy["y"]])
                     enemy["shoot_delay"] = 30
@@ -539,7 +552,7 @@ class SpaceShooter:
                 bullet[1] += bullet[3]
             else:  # Standard bullet
                 bullet[0] += 4
-            
+
             # Check boss hits
             if self.boss and (120 <= bullet[0] <= 144 and 
                             self.boss["y"] <= bullet[1] <= self.boss["y"] + 11):
@@ -556,29 +569,25 @@ class SpaceShooter:
                         })
                     if self.sound_enabled:
                         pyxel.play(1, 3)
-                    self.boss = None
                     self.score += 100
                     self.level_complete_timer = 180  # 3 seconds
                     if self.sound_enabled:
                         pyxel.stop(0)  # Stop boss music
                         pyxel.play(0, 5)  # Play victory tune
-                    # Prepare for next level
-                    if self.level_complete_timer <= 0:
-                        self.current_level += 1
-                        self.level_text_timer = 120
-                        self.game_speed_multiplier *= 1.2
-                        self.enemies.clear()
-                        self.enemy_bullets.clear()
-                
+                    self.boss = None
+                    self.enemies.clear()
+                    self.enemy_bullets.clear()
+                    self.player_bullets.clear()
+
             if bullet[0] > 160 or bullet[0] < 0 or bullet[1] < 0 or bullet[1] > 120:
                 self.player_bullets.remove(bullet)
-                
+
         # Update boss
         if self.boss:
             self.boss["y"] += self.boss["dy"]
             if self.boss["y"] <= 10 or self.boss["y"] >= 100:
                 self.boss["dy"] *= -1
-            
+
             # Boss shooting
             self.boss["shoot_timer"] += 1
             if self.boss["shoot_timer"] >= 30:
@@ -598,7 +607,7 @@ class SpaceShooter:
             self.move_speed = 4
         elif powerup_type == self.POWERUP_PARTNER:
             self.partner_active = True
-            self.partner_offset = {"x": -20, "y": 0}
+            self.partner_offset = {"x": 0, "y": -15}  # Position partner above player
 
     def deactivate_powerup(self):
         if self.current_powerup == self.POWERUP_SPREAD:
@@ -649,10 +658,13 @@ class SpaceShooter:
 
     def draw_game(self):
         if self.level_text_timer > 0:
+            if self.level_text_timer == 120 and self.sound_enabled:  # Start of level text
+                pyxel.stop(0)  # Stop current music
+                pyxel.play(0, 5 + self.current_level, loop=True)  # Play level-specific music
             pyxel.text(65, 60, f"LEVEL {self.current_level}", pyxel.frame_count % 16)
             self.level_text_timer -= 1
             return
-            
+
         if self.level_complete_timer > 0:
             if self.level_complete_timer > 120:
                 pyxel.text(50, 60, "LEVEL COMPLETED!", pyxel.frame_count % 16)
@@ -663,6 +675,10 @@ class SpaceShooter:
                 self.current_level += 1
                 self.level_text_timer = 120
                 self.game_speed_multiplier *= 1.2
+                for enemy in self.enemies[:]:
+                    enemy["health"] *= 1.5
+                    enemy["dx"] *= 1.2
+                self.enemy_spawn_timer = 0
             return
 
         # Draw power-ups
