@@ -319,14 +319,39 @@ class SpaceShooter:
                 for _ in range(10):  # Wait
                     pyxel.flip()
 
-            # Initialize boss
-            self.boss = {
-                "x": 120,
-                "y": 60,
-                "dy": 1,
-                "hp": 250,
-                "shoot_timer": 0
-            }
+            # Initialize boss based on current level
+            if self.current_level == 1:
+                self.boss = {
+                    "x": 120,
+                    "y": 60,
+                    "dy": 1,
+                    "hp": 250,
+                    "shoot_timer": 0,
+                    "pattern": "straight",
+                    "speed": 1
+                }
+            elif self.current_level == 2:
+                self.boss = {
+                    "x": 120,
+                    "y": 60,
+                    "dy": 2,
+                    "hp": 350,
+                    "shoot_timer": 0,
+                    "pattern": "spread",
+                    "speed": 1.5,
+                    "angle": 0
+                }
+            else:
+                self.boss = {
+                    "x": 120,
+                    "y": 60,
+                    "dy": 3,
+                    "hp": 500,
+                    "shoot_timer": 0,
+                    "pattern": "spiral",
+                    "speed": 2,
+                    "angle": 0
+                }
             # Clear existing enemies
             self.enemies.clear()
             # Start boss battle music
@@ -593,10 +618,29 @@ class SpaceShooter:
             if self.boss["y"] <= 10 or self.boss["y"] >= 100:
                 self.boss["dy"] *= -1
 
-            # Boss shooting
+            # Boss shooting patterns
             self.boss["shoot_timer"] += 1
-            if self.boss["shoot_timer"] >= 30:
-                self.enemy_bullets.append([self.boss["x"], self.boss["y"] + 5])
+            shoot_interval = max(10, 30 - (self.current_level * 5))
+
+            if self.boss["shoot_timer"] >= shoot_interval:
+                if self.boss["pattern"] == "straight":
+                    # Level 1 boss: triple straight shot
+                    for offset in [-5, 0, 5]:
+                        self.enemy_bullets.append([self.boss["x"], self.boss["y"] + offset])
+                elif self.boss["pattern"] == "spread":
+                    # Level 2 boss: spread shot
+                    for angle in range(-45, 46, 15):
+                        dx = math.cos(math.radians(angle)) * -2
+                        dy = math.sin(math.radians(angle))
+                        self.enemy_bullets.append([self.boss["x"], self.boss["y"], dx, dy])
+                else:
+                    # Level 3 boss: spiral pattern
+                    self.boss["angle"] += 30
+                    dx = math.cos(math.radians(self.boss["angle"])) * -3
+                    dy = math.sin(math.radians(self.boss["angle"]))
+                    self.enemy_bullets.append([self.boss["x"], self.boss["y"], dx, dy])
+                    self.enemy_bullets.append([self.boss["x"], self.boss["y"], -dx, -dy])
+
                 self.boss["shoot_timer"] = 0
 
         # Update background scroll
@@ -627,10 +671,24 @@ class SpaceShooter:
     def draw(self):
         pyxel.cls(0)
 
-        # Draw stars (background for all screens)
+        # Draw stars with level-specific colors
         for star in self.stars:
             x = (star[0] - self.scroll_x) % 160
-            pyxel.pset(x, star[1], 7)
+            if self.game_state == "GAME":
+                if self.current_level == 1:
+                    # Blue theme
+                    color = 12 if star[1] % 3 == 0 else 6
+                    pyxel.pset(x, star[1], color)
+                elif self.current_level == 2:
+                    # Green theme
+                    color = 11 if star[1] % 3 == 0 else 3
+                    pyxel.pset(x, star[1], color)
+                else:
+                    # Red theme
+                    color = 8 if star[1] % 3 == 0 else 2
+                    pyxel.pset(x, star[1], color)
+            else:
+                pyxel.pset(x, star[1], 7)
 
         if self.game_state == "TITLE":
             self.draw_title()
@@ -666,7 +724,8 @@ class SpaceShooter:
             if self.level_text_timer == 120 and self.sound_enabled:  # Start of level text
                 pyxel.stop(0)  # Stop current music
                 pyxel.play(0, 5 + self.current_level, loop=True)  # Play level-specific music
-            pyxel.text(65, 60, f"LEVEL {self.current_level}", pyxel.frame_count % 16)
+            level_color = 12 if self.current_level == 1 else (11 if self.current_level == 2 else 8)
+            pyxel.text(65, 60, f"LEVEL {self.current_level}", level_color)
             self.level_text_timer -= 1
             return
 
@@ -720,6 +779,24 @@ class SpaceShooter:
         # Draw score and lives
         pyxel.text(5, 5, f"SCORE: {self.score}", 7)
         pyxel.text(80, 5, f"LIVES: {self.player_lives}", 7)
+
+        # Draw power-up status
+        if self.current_powerup is not None:
+            # Draw background bar
+            pyxel.rect(5, 15, 50, 5, 1)
+            # Draw progress bar
+            bar_width = int((self.powerup_timer / 300) * 48)
+            pyxel.rect(6, 16, bar_width, 3, 11)
+            
+            # Draw power-up icon and type
+            icon_color = 10 if self.current_powerup == self.POWERUP_SPREAD else (
+                9 if self.current_powerup == self.POWERUP_SPEED else 12)
+            pyxel.circ(60, 17, 3, icon_color)
+            
+            # Draw power-up type text
+            power_type = "SPREAD" if self.current_powerup == self.POWERUP_SPREAD else (
+                "SPEED" if self.current_powerup == self.POWERUP_SPEED else "PARTNER")
+            pyxel.text(65, 15, power_type, icon_color)
 
         #Draw Boss
         if self.boss:
