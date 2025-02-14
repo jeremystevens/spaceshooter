@@ -4,6 +4,11 @@
 ## [1.0.0] - 2024
 
 ### Added
+- Game Over screen with features:
+  - Custom dreary game over music
+  - High score entry system with 3-letter initials
+  - Play again and main menu options
+  - Final score display
 - Distinct level themes with unique color schemes
   - Level 1: Blue theme with light blue accents
   - Level 2: Green theme with lime accents
@@ -35,6 +40,10 @@
 - Audio system for level-specific music
 
 ### Improved
+- Boss battle visual feedback with hit flash effect
+- Boss health visualization with optimized top-right corner health bar
+- Second boss battle balance adjustments
+- Boss bullet patterns and timing
 - Visual feedback for power-ups
 - Background star patterns
 - Level completion messages

@@ -7,6 +7,15 @@ class SpaceShooter:
     def __init__(self):
         pyxel.init(160, 120, title="Space Shooter")
 
+        # Initialize high scores with initials
+        self.high_scores = [
+            {"score": 1000, "initials": "AAA"},
+            {"score": 750, "initials": "BBB"},
+            {"score": 500, "initials": "CCC"},
+            {"score": 250, "initials": "DDD"},
+            {"score": 100, "initials": "EEE"}
+        ]
+
         # Power-up types
         self.POWERUP_SPREAD = 0
         self.POWERUP_SPEED = 1
@@ -136,7 +145,13 @@ class SpaceShooter:
         self.level_text_timer = 120  # Show level text for 2 seconds
         self.level_complete_timer = 0
         self.game_speed_multiplier = 1.0
-        self.high_scores = [1000, 750, 500, 250, 100]  # Default high scores
+        self.high_scores = [
+            {"score": 1000, "initials": "AAA"},
+            {"score": 750, "initials": "BBB"},
+            {"score": 500, "initials": "CCC"},
+            {"score": 250, "initials": "DDD"},
+            {"score": 100, "initials": "EEE"}
+        ]
         self.sound_enabled = True
         self.difficulty = "NORMAL"  # EASY, NORMAL, HARD
         self.settings_selection = 0  # 0: Sound, 1: Difficulty
@@ -188,6 +203,11 @@ class SpaceShooter:
             "d3d3b2f2 f2f2b2d3 c3c3c3f3 f3f3rr" "b2b2g2d2 d2d2g2b2 a2a2a2d3 d3d3rr",
             "s", "7", "fnff", 30)
 
+        # Game over music (sad and dreary)
+        pyxel.sounds[9].set(
+            "e2c2a1f1 f1f1a1c2 g1g1g1c2 c2c2rr",
+            "t", "4", "nnff", 15)
+
         # Start playing the background music
         pyxel.play(0, 6, loop=True)  # Start with level 1 music
 
@@ -215,6 +235,31 @@ class SpaceShooter:
 
         elif self.game_state == "GAME":
             self.update_game()
+        elif self.game_state == "GAME_OVER":
+            if self.is_high_score:
+                if pyxel.btnp(pyxel.KEY_UP):
+                    current = ord(self.initials[self.initial_index])
+                    self.initials[self.initial_index] = chr((current - 65 + 1) % 26 + 65)
+                if pyxel.btnp(pyxel.KEY_DOWN):
+                    current = ord(self.initials[self.initial_index])
+                    self.initials[self.initial_index] = chr((current - 65 - 1) % 26 + 65)
+                if pyxel.btnp(pyxel.KEY_RIGHT):
+                    self.initial_index = (self.initial_index + 1) % 3
+                if pyxel.btnp(pyxel.KEY_LEFT):
+                    self.initial_index = (self.initial_index - 1) % 3
+                if pyxel.btnp(pyxel.KEY_RETURN):
+                    initials_str = "".join(self.initials)
+                    new_score = {"score": self.score, "initials": initials_str}
+                    self.high_scores.append(new_score)
+                    self.high_scores.sort(key=lambda x: x["score"], reverse=True)
+                    self.high_scores = self.high_scores[:5]
+
+            if pyxel.btnp(pyxel.KEY_SPACE):  # Play Again
+                self.reset_game()
+            elif pyxel.btnp(pyxel.KEY_ESCAPE):  # Back to Title
+                self.game_state = "TITLE"
+                self.reset_game()
+
         elif self.game_state == "SETTINGS":
             if pyxel.btnp(pyxel.KEY_UP):
                 self.settings_selection = (self.settings_selection - 1) % 2
@@ -326,9 +371,11 @@ class SpaceShooter:
                     "y": 60,
                     "dy": 1,
                     "hp": 250,
+                    "max_hp": 250,
                     "shoot_timer": 0,
                     "pattern": "straight",
-                    "speed": 1
+                    "speed": 1,
+                    "hit_flash": 0
                 }
             elif self.current_level == 2:
                 self.boss = {
@@ -336,10 +383,12 @@ class SpaceShooter:
                     "y": 60,
                     "dy": 2,
                     "hp": 350,
+                    "max_hp": 350,
                     "shoot_timer": 0,
                     "pattern": "spread",
                     "speed": 1.5,
-                    "angle": 0
+                    "angle": 0,
+                    "hit_flash": 0
                 }
             else:
                 self.boss = {
@@ -347,10 +396,12 @@ class SpaceShooter:
                     "y": 60,
                     "dy": 3,
                     "hp": 500,
+                    "max_hp": 500,
                     "shoot_timer": 0,
                     "pattern": "spiral",
                     "speed": 2,
-                    "angle": 0
+                    "angle": 0,
+                    "hit_flash": 0
                 }
             # Clear existing enemies
             self.enemies.clear()
@@ -534,15 +585,13 @@ class SpaceShooter:
                 for _ in range(30):  # Pause for 30 frames (0.5 seconds)
                     pyxel.flip()
                 if self.player_lives <= 0:
-                    if self.score > min(self.high_scores):
-                        self.high_scores.append(self.score)
-                        self.high_scores.sort(reverse=True)
-                        self.high_scores = self.high_scores[:5]
-                    self.game_state = "TITLE"
-                    self.player_x = 20
-                    self.player_y = 60
-                    self.player_lives = 3
-                    self.score = 0
+                    if self.sound_enabled:
+                        pyxel.stop()  # Stop current music
+                        pyxel.play(0, 9)  # Play game over music
+                    self.game_state = "GAME_OVER"
+                    self.initials = ["A", "A", "A"]  # Default initials
+                    self.initial_index = 0  # Current initial being edited
+                    self.is_high_score = self.score > min(score["score"] for score in self.high_scores) if self.high_scores else True
                     self.enemies.clear()
                 self.enemy_bullets.clear()
                 self.player_bullets.clear()
@@ -589,6 +638,8 @@ class SpaceShooter:
                 if bullet in self.player_bullets:
                     self.player_bullets.remove(bullet)
                 self.boss["hp"] -= 10
+                # Add hit flash effect
+                self.boss["hit_flash"] = 10  # Flash duration in frames
                 if self.boss["hp"] <= 0:
                     # Add explosion effect
                     for i in range(5):
@@ -672,6 +723,19 @@ class SpaceShooter:
 
         self.current_powerup = None
 
+    def reset_game(self):
+        self.player_x = 20
+        self.player_y = 60
+        self.player_lives = 3
+        self.score = 0
+        self.enemies.clear()
+        self.enemy_bullets.clear()
+        self.player_bullets.clear()
+        self.powerups.clear()
+        self.current_level = 1
+        self.boss = None
+        self.boss_trigger_score = 350
+
     def draw(self):
         pyxel.cls(0)
 
@@ -700,6 +764,8 @@ class SpaceShooter:
             self.draw_game()
         elif self.game_state == "HIGHSCORE":
             self.draw_highscore()
+        elif self.game_state == "GAME_OVER":
+            self.draw_game_over()
         elif self.game_state == "SETTINGS":
             self.draw_settings()
 
@@ -810,14 +876,55 @@ class SpaceShooter:
 
         #Draw Boss
         if self.boss:
+            # Draw boss with hit flash effect
+            if self.boss["hit_flash"] > 0:
+                self.boss["hit_flash"] -= 1
+                color = 7 if self.boss["hit_flash"] % 2 == 0 else 8
+                pyxel.pal(9, color)
+            
             pyxel.blt(self.boss["x"], self.boss["y"], 0, 48, 0, 24, 11, 0)
+            pyxel.pal()  # Reset palette
+            
+            # Draw boss health bar in top right corner
+            bar_width = 40
+            health_percent = self.boss["hp"] / self.boss["max_hp"]
+            current_health_width = int(bar_width * health_percent)
+            
+            # Draw background bar
+            pyxel.rect(110, 5, bar_width, 5, 1)
+            # Draw health bar
+            pyxel.rect(111, 6, current_health_width - 2, 3, 8)
+            # Draw "BOSS" text
+            pyxel.text(115, 12, f"BOSS: {self.boss['hp']}", 8)
 
 
     def draw_highscore(self):
         pyxel.text(55, 30, "HIGH SCORES", 7)
-        for i, score in enumerate(self.high_scores):
-            pyxel.text(65, 45 + i * 10, f"{i+1}. {score}", 7)
+        for i, score_data in enumerate(self.high_scores):
+            pyxel.text(45, 45 + i * 10, f"{i+1}. {score_data['initials']} - {score_data['score']}", 7)
         pyxel.text(40, 100, "Press Q to return", 7)
+
+    def draw_game_over(self):
+        pyxel.text(60, 30, "GAME OVER", 8)
+        pyxel.text(50, 45, f"FINAL SCORE: {self.score}", 7)
+
+        if self.is_high_score:
+            pyxel.text(40, 60, "NEW HIGH SCORE!", pyxel.frame_count % 16)
+            pyxel.text(30, 70, "ENTER YOUR INITIALS:", 7)
+            for i, initial in enumerate(self.initials):
+                color = 11 if i == self.initial_index else 7
+                pyxel.text(65 + i * 8, 80, initial, color)
+
+        pyxel.rect(30, 95, 40, 10, 5)  # Play Again button
+        pyxel.text(35, 97, "PLAY", 7)
+        
+        pyxel.rect(90, 95, 40, 10, 5)  # Menu button
+        pyxel.text(95, 97, "MENU", 7)
+
+        if self.is_high_score:
+            pyxel.text(20, 110, "USE ARROWS + ENTER TO SET INITIALS", 7)
+        else:
+            pyxel.text(20, 110, "PRESS SPACE/ESC TO CONTINUE", 7)
 
     def draw_settings(self):
         pyxel.text(55, 30, "SETTINGS", 7)
