@@ -355,6 +355,10 @@ class SpaceShooter:
             })
 
     def update_game(self):
+        # Debug key to set score
+        if pyxel.btnp(pyxel.KEY_F1):
+            self.score = 350
+            
         # Check for boss initiation
         if self.score >= self.boss_trigger_score and not self.boss:
             # Flash screen red 3 times
@@ -423,7 +427,22 @@ class SpaceShooter:
             enemy["shoot_delay"] -= 1
 
             if enemy["type"] == 0:  # Scout
-                enemy["x"] += enemy["dx"]
+                # Calculate distance to player
+                dx = self.player_x - enemy["x"]
+                dy = self.player_y - enemy["y"]
+                distance = math.sqrt(dx * dx + dy * dy)
+
+                if distance < 50:  # Within range for kamikaze behavior
+                    # Normalize direction and apply speed
+                    speed = 2
+                    enemy["dx"] = (dx / distance) * speed
+                    enemy["dy"] = (dy / distance) * speed
+                    enemy["x"] += enemy["dx"]
+                    enemy["y"] = max(25, min(110, enemy["y"] + enemy["dy"]))  # Keep within bounds
+                else:
+                    enemy["x"] += enemy["dx"]
+                    enemy["dy"] = 0
+
                 if enemy["shoot_delay"] <= 0:
                     self.enemy_bullets.append([enemy["x"], enemy["y"] + 2])
                     enemy["shoot_delay"] = 45
@@ -473,7 +492,7 @@ class SpaceShooter:
                 if enemy["dir_change"] >= 30:
                     enemy["dy"] = pyxel.rndf(-2, 2)
                     enemy["dir_change"] = 0
-                enemy["y"] = max(10, min(110, enemy["y"] + enemy["dy"]))
+                enemy["y"] = max(25, min(110, enemy["y"] + enemy["dy"]))
                 if enemy["shoot_delay"] <= 0:
                     self.enemy_bullets.append([enemy["x"], enemy["y"]])
                     enemy["shoot_delay"] = 30
@@ -492,8 +511,8 @@ class SpaceShooter:
                         dy = math.sin(math.radians(angle))
                         self.enemy_bullets.append([enemy["x"], enemy["y"], dx, dy])
                     enemy["shoot_delay"] = 120
-                enemy["y"] = max(10, min(110, enemy["y"] + enemy["dy"]))
-                if enemy["y"] <= 10 or enemy["y"] >= 110:
+                enemy["y"] = max(25, min(110, enemy["y"] + enemy["dy"]))
+                if enemy["y"] <= 25 or enemy["y"] >= 110:
                     enemy["dy"] *= -1  # Reverse direction when hitting boundaries
                 if enemy["shoot_delay"] <= 0:
                     self.enemy_bullets.append([enemy["x"], enemy["y"]])
@@ -571,6 +590,30 @@ class SpaceShooter:
             self.powerup_timer -= 1
             if self.powerup_timer <= 0:
                 self.deactivate_powerup()
+
+        # Hit detection - Enemy collision and bullets hitting player
+        for enemy in self.enemies[:]:
+            if (abs(enemy["x"] - self.player_x) < 12 and 
+                abs(enemy["y"] - self.player_y) < 12):
+                self.player_lives -= 1
+                if enemy in self.enemies:
+                    self.enemies.remove(enemy)
+                    self.explosions.append({
+                        "x": enemy["x"],
+                        "y": enemy["y"],
+                        "timer": 10
+                    })
+                if self.sound_enabled:
+                    pyxel.play(1, 3)
+                if self.player_lives <= 0:
+                    self.game_state = "GAME_OVER"
+                    self.initials = ["A", "A", "A"]
+                    self.initial_index = 0
+                    self.is_high_score = self.score > min(score["score"] for score in self.high_scores) if self.high_scores else True
+                    self.enemies.clear()
+                self.enemy_bullets.clear()
+                self.player_bullets.clear()
+                break
 
         # Hit detection - Enemy bullets hitting player
         for bullet in self.enemy_bullets[:]:
@@ -655,14 +698,16 @@ class SpaceShooter:
                     if self.sound_enabled:
                         pyxel.stop(0)  # Stop boss music
                         pyxel.play(0, 5)  # Play victory tune
-                        pyxel.play(0, 5 + self.current_level, loop=True)  # Queue next level music
+                    self.score += 100
+                    self.level_complete_timer = 180  # 3 seconds
+                    self.current_level += 1  # Increment level here
                     self.boss = None
                     self.enemies.clear()
                     self.enemy_bullets.clear()
                     self.player_bullets.clear()
                     # Reset boss trigger score for next level
                     self.boss_trigger_score = self.score + 350
-                    return  # Exit update loop after boss defeat
+                    return  # Exit the update loop cleanly
 
             if bullet[0] > 160 or bullet[0] < 0 or bullet[1] < 0 or bullet[1] > 120:
                 self.player_bullets.remove(bullet)
@@ -806,7 +851,6 @@ class SpaceShooter:
                 pyxel.cls(0)
             self.level_complete_timer -= 1
             if self.level_complete_timer == 0:
-                self.current_level += 1
                 self.level_text_timer = 120
                 self.game_speed_multiplier *= 1.2
                 # Clear all game objects
@@ -863,12 +907,12 @@ class SpaceShooter:
             # Draw progress bar
             bar_width = int((self.powerup_timer / 300) * 48)
             pyxel.rect(6, 16, bar_width, 3, 11)
-            
+
             # Draw power-up icon and type
             icon_color = 10 if self.current_powerup == self.POWERUP_SPREAD else (
                 9 if self.current_powerup == self.POWERUP_SPEED else 12)
             pyxel.circ(60, 17, 3, icon_color)
-            
+
             # Draw power-up type text
             power_type = "SPREAD" if self.current_powerup == self.POWERUP_SPREAD else (
                 "SPEED" if self.current_powerup == self.POWERUP_SPEED else "PARTNER")
@@ -881,15 +925,15 @@ class SpaceShooter:
                 self.boss["hit_flash"] -= 1
                 color = 7 if self.boss["hit_flash"] % 2 == 0 else 8
                 pyxel.pal(9, color)
-            
+
             pyxel.blt(self.boss["x"], self.boss["y"], 0, 48, 0, 24, 11, 0)
             pyxel.pal()  # Reset palette
-            
+
             # Draw boss health bar in top right corner
             bar_width = 40
             health_percent = self.boss["hp"] / self.boss["max_hp"]
             current_health_width = int(bar_width * health_percent)
-            
+
             # Draw background bar
             pyxel.rect(110, 5, bar_width, 5, 1)
             # Draw health bar
@@ -917,7 +961,7 @@ class SpaceShooter:
 
         pyxel.rect(30, 95, 40, 10, 5)  # Play Again button
         pyxel.text(35, 97, "PLAY", 7)
-        
+
         pyxel.rect(90, 95, 40, 10, 5)  # Menu button
         pyxel.text(95, 97, "MENU", 7)
 
