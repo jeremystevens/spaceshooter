@@ -422,8 +422,7 @@ class SpaceShooter:
                 if enemy["dir_change"] >= 30:
                     enemy["dy"] = pyxel.rndf(-2, 2)
                     enemy["dir_change"] = 0
-                enemy["y"] += enemy["dy"]
-                enemy["y"] = max(10, min(110, enemy["y"]))
+                enemy["y"] = max(10, min(110, enemy["y"] + enemy["dy"]))
                 if enemy["shoot_delay"] <= 0:
                     self.enemy_bullets.append([enemy["x"], enemy["y"]])
                     enemy["shoot_delay"] = 30
@@ -455,9 +454,13 @@ class SpaceShooter:
             if enemy["x"] < -10:
                 self.enemies.remove(enemy)
 
-        # Update enemy bullets
+        # Update enemy bullets with speed multiplier
         for bullet in self.enemy_bullets[:]:
-            bullet[0] -= 3
+            if len(bullet) == 4:  # Directional bullet
+                bullet[0] += bullet[2] * self.game_speed_multiplier
+                bullet[1] += bullet[3] * self.game_speed_multiplier
+            else:  # Standard bullet
+                bullet[0] -= 3 * self.game_speed_multiplier
             if bullet[0] < 0:
                 self.enemy_bullets.remove(bullet)
 
@@ -601,6 +604,7 @@ class SpaceShooter:
                     if self.sound_enabled:
                         pyxel.stop(0)  # Stop boss music
                         pyxel.play(0, 5)  # Play victory tune
+                        pyxel.play(0, 5 + self.current_level, loop=True)  # Queue next level music
                     self.boss = None
                     self.enemies.clear()
                     self.enemy_bullets.clear()
@@ -643,8 +647,8 @@ class SpaceShooter:
 
                 self.boss["shoot_timer"] = 0
 
-        # Update background scroll
-        self.scroll_x = (self.scroll_x + 1) % 160
+        # Update background scroll with game speed multiplier
+        self.scroll_x = (self.scroll_x + 1 * self.game_speed_multiplier) % 160
 
     def activate_powerup(self, powerup_type):
         self.current_powerup = powerup_type
@@ -653,7 +657,7 @@ class SpaceShooter:
         if powerup_type == self.POWERUP_SPREAD:
             self.shot_pattern = "spread"
         elif powerup_type == self.POWERUP_SPEED:
-            self.move_speed = 4
+            self.move_speed = 6  # Increased from 4 to 6 for more noticeable speed boost
         elif powerup_type == self.POWERUP_PARTNER:
             self.partner_active = True
             self.partner_offset = {"x": 0, "y": -15}  # Position partner above player
@@ -739,10 +743,16 @@ class SpaceShooter:
                 self.current_level += 1
                 self.level_text_timer = 120
                 self.game_speed_multiplier *= 1.2
-                for enemy in self.enemies[:]:
-                    enemy["health"] *= 1.5
-                    enemy["dx"] *= 1.2
+                # Clear all game objects
+                self.enemies.clear()
+                self.enemy_bullets.clear()
+                self.player_bullets.clear()
+                self.powerups.clear()
+                self.explosions.clear()
                 self.enemy_spawn_timer = 0
+                # Reset player position
+                self.player_x = 20
+                self.player_y = 60
             return
 
         # Draw power-ups
